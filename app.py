@@ -4,6 +4,15 @@ import json
 
 app = Flask(__name__)
 
+# NOT NEEDED WITHOUT TEST_TASKS.JSON
+# def test_file():
+#     if test_file
+#         with open(testfile)
+#         return testfile
+#     else 
+#         with open(file)
+#         return file
+
 # HOME
 @app.route('/', methods=['GET'])
 def tasks():
@@ -12,7 +21,7 @@ def tasks():
         
     return render_template('index2.html', tasks=tasks)
 
-# ADD /TASKS AS GET
+# GET TASKS
 @app.route('/tasks', methods=['GET'])
 def get_tasks():
     with open('tasks.json', 'r') as file:
@@ -29,8 +38,15 @@ def get_tasks():
 @app.route('/tasks/add', methods=['POST'])
 def add_task():
     # Check that all required fields are present
-    required_fields = ['id', 'description', 'category', 'status']
-    missing_fields = [field for field in required_fields if field not in request.form]
+    required_fields = ['id', 'description', 'category']
+
+    if request.is_json:
+        data = request.json
+    else:
+        data = request.form
+
+    missing_fields = [field for field in required_fields if field not in data]
+
     if missing_fields:
         return {"status": "error", "message": f"Missing fields: {', '.join(missing_fields)}"}, 400
 
@@ -42,19 +58,18 @@ def add_task():
         tasks = []  # Initialize tasks list if file doesn't exist or is corrupted
 
     try:
-        task_id = int(request.form.get('id'))
+        task_id = int(data.get('id'))
     except ValueError:
         return {"status": "error", "message": "Task ID must be an integer"}, 400
     
     if any(task['id'] == task_id for task in tasks):
         return {"status": "error", "message": f"Task with id {task_id} already exists"}, 400
 
-    # Create new task with auto-generated id
     new_task = {
         'id': task_id,
-        'description': request.form.get('description'),
-        'category': request.form.get('category'),
-        'status': request.form.get('status')
+        'description': data.get('description'),
+        'category': data.get('category'),
+        'status': 'pending'
     }
     tasks.append(new_task)
 
@@ -116,6 +131,12 @@ def delete_task(id):
 # UPDATE TASK
 @app.route('/tasks/<int:id>', methods=['PUT'])
 def update_task(id):
+
+    if request.is_json:
+        data = request.json
+    else:
+        data = request.form
+
     try:
         with open('tasks.json', 'r') as file:
             tasks = json.load(file)
@@ -126,12 +147,12 @@ def update_task(id):
     if task is None:
         return "Task not found", 404
     
-    task.update({key: request.form.get(key) for key in ['description', 'category', 'status'] if request.form.get(key) is not None})
+    task.update({key: data.get(key) for key in ['description', 'category', 'status'] if data.get(key) is not None})
 
     with open('tasks.json', 'w') as file:
         json.dump(tasks, file, indent=4)
     print('this is my PUT task', task)
-    return task
+    return {"status": "success", "message": "Task updated successfully!", "task": task}
 
 # COMPLETE TASK
 @app.route('/tasks/<int:id>/complete', methods=['PUT'])
@@ -151,7 +172,7 @@ def complete_task(id):
     with open('tasks.json', 'w') as file:
         json.dump(tasks, file, indent=4)
     print('this is my complete task', task)
-    return task
+    return {"status": "success", "message": f"Task with id {id} completed successfully!"}
 
 # GET CATEGORIES
 @app.route('/tasks/categories', methods=['GET'])
@@ -159,6 +180,8 @@ def get_categories():
     with open('tasks.json', 'r') as file:
         tasks = json.load(file)
     categories = list(set(task['category'] for task in tasks))
+    categories.sort()
+    print(categories)
     return {"categories": categories}
 
 # GET TASKS BY CATEGORY
