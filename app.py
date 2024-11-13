@@ -1,4 +1,5 @@
 from flask import Flask, render_template, redirect, url_for, request
+from functools import wraps
 import json
 
 app = Flask(__name__)
@@ -8,8 +9,21 @@ app = Flask(__name__)
 def tasks():
     with open('tasks.json', 'r') as file:
         tasks = json.load(file)
-
+        
     return render_template('index2.html', tasks=tasks)
+
+# ADD /TASKS AS GET
+@app.route('/tasks', methods=['GET'])
+def get_tasks():
+    with open('tasks.json', 'r') as file:
+        tasks = json.load(file)
+
+    if request.args.get('completed') == 'true':
+        return {"tasks": [task for task in tasks if task['status'] == 'completed']}
+    elif request.args.get('completed') == 'false':
+        return {"tasks": [task for task in tasks if task['status'] != 'completed']}
+    else: 
+        return {"tasks": tasks}
 
 # ADD TASK
 @app.route('/tasks/add', methods=['POST'])
@@ -62,8 +76,24 @@ def get_specific_task(id):
     print(task)
     return task
 
+# DECORATOR FOR PASSWORD
+def password_req(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not request.is_json:
+            return {"error": "Missing JSON in request"}, 400
+        
+        data = request.get_json()
+
+        if data.get("password") != "123":
+            return {"error": "Incorrect password"}, 401
+        
+        return f(*args, **kwargs)
+    return decorated
+
 # DELETE TASK
 @app.route('/tasks/<int:id>', methods=['DELETE'])
+@password_req
 def delete_task(id):
     try:
         with open('tasks.json', 'r') as file:
@@ -75,6 +105,7 @@ def delete_task(id):
     tasks = [task for task in tasks if task['id'] != id]
 
     if len(tasks) == initial_length:
+        print("404 error")
         return "Task not found", 404
     
     with open('tasks.json', 'w') as file:
@@ -102,6 +133,41 @@ def update_task(id):
     print('this is my PUT task', task)
     return task
 
+# COMPLETE TASK
+@app.route('/tasks/<int:id>/complete', methods=['PUT'])
+def complete_task(id):
+    try:
+        with open('tasks.json', 'r') as file:
+            tasks = json.load(file)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return "Tasks file not found or is corrupted", 500
+    
+    task = next((task for task in tasks if task['id'] == id), None)
+    if task is None:
+        return "Task not found", 404
+    
+    task['status'] = 'completed'
+
+    with open('tasks.json', 'w') as file:
+        json.dump(tasks, file, indent=4)
+    print('this is my complete task', task)
+    return task
+
+# GET CATEGORIES
+@app.route('/tasks/categories', methods=['GET'])
+def get_categories():
+    with open('tasks.json', 'r') as file:
+        tasks = json.load(file)
+    categories = list(set(task['category'] for task in tasks))
+    return {"categories": categories}
+
+# GET TASKS BY CATEGORY
+@app.route('/tasks/category/<category>', methods=['GET'])
+def get_tasks_by_category(category):
+    with open('tasks.json', 'r') as file:
+        tasks = json.load(file)
+    tasks = [task for task in tasks if task['category'] == category]
+    return {"tasks": tasks}
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True, port=5001)

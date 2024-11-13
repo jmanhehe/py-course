@@ -61,6 +61,16 @@
             font-size: 24px;
             cursor: pointer;
         }
+        .category-section h3 {
+            cursor: pointer;
+            padding: 10px;
+            background-color: #f0f0f0;
+        }
+        .task-list {
+            padding: 10px;
+            margin: 0;
+            list-style-type: none;
+        }
     </style>
 </head>
 <body>
@@ -74,7 +84,7 @@
         <a href="#" onclick="showSection('all-tasks')">All Tasks</a>
         <a href="#" onclick="showSection('add-task')">Add Task</a>
         <a href="#" onclick="showSection('find-task')">Find Task</a>
-        <a href="#" onclick="showSection('categories')">Categories</a>
+        <a href="#" onclick="event.preventDefault(); showSection('categories')">Categories</a>
     </nav>
 
     <!-- All Tasks Section -->
@@ -88,10 +98,9 @@
                     Category: {{ task.category }} <br>
                     Description: {{ task.description }} <br>
                     Status: {{ task.status }} <br>
-                    <input type="checkbox" 
-                           onchange="markComplete('{{ task.id }}')" 
-                           {% if task.status == 'completed' %}checked{% endif %}>
-                    Mark as Complete
+                    {% if task.status != 'completed' %}
+                        <button onclick="markComplete('{{ task.id }}')">Mark as Complete</button>
+                    {% endif %}
                     <button onclick="deleteTask('{{ task.id }}')">Delete</button>
                     <button onclick="showEditForm('{{ task.id }}')">Edit</button>
                 </li>
@@ -143,6 +152,12 @@
     <!-- Categories Section -->
     <div id="categories" class="hidden">
         <h2>Tasks by Category</h2>
+        <div id="category-container">
+
+        </div>
+    </div>
+    <!-- <div id="categories" class="hidden">
+        <h2>Tasks by Category</h2>
         {% if categories %}
             {% for category in categories %}
                 <div class="category-section">
@@ -161,16 +176,25 @@
         {% else %}
             <p>No categories found.</p>
         {% endif %}
-    </div>
+    </div> -->
 
     <script>
         function showSection(sectionId) {
+
+            console.log("this is my first sectionId", sectionId);
+
             // Hide all sections
             document.querySelectorAll('div[id]').forEach(div => {
                 div.classList.add('hidden');
             });
             // Show selected section
             document.getElementById(sectionId).classList.remove('hidden');
+
+            if(sectionId === 'categories') {
+                console.log("this is inside the if statement")
+                fetchCategories();
+                document.getElementById('category-container').classList.remove('hidden');
+            }
         }
 
         function addTask(event) {
@@ -189,17 +213,26 @@
         }
 
         function deleteTask(id) {
-            if (confirm('Are you sure you want to delete this task?')) {
-                fetch(`/tasks/${id}`, {
-                    method: 'DELETE'
-                })
-                .then(response => response.json())
-                .then(data => {
-                    alert('Task deleted successfully!');
-                    location.reload();
-                })
-                .catch(error => alert('Error deleting task'));
+            const password = prompt('Enter your password to delete this task:', '');
+
+            if(password !== "123") {
+                alert('Incorrect password. Task not deleted.');
+                return;
             }
+
+            fetch(`/tasks/${id}`, {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ password: password })
+            })
+            .then(response => response.json())
+            .then(data => {
+                alert('Task deleted successfully!');
+                location.reload();
+            })
+            .catch(error => alert('Error deleting task'));
         }
 
         function findTask() {
@@ -229,14 +262,14 @@
                 resultDiv.classList.remove('hidden');
             })
             .catch(error => {
-                alert('asdasdasd Task not found');
+                alert('Task not found');
                 document.getElementById('task-result').classList.add('hidden');
             })
         }
 
         function markComplete(id) {
             fetch(`/tasks/${id}/complete`, {
-                method: 'POST'
+                method: 'PUT'
             })
             .then(response => response.json())
             .then(data => {
@@ -298,6 +331,70 @@
             })
             .catch(error => alert('Error updating task'));
         }
+
+        function fetchCategories() {
+            console.log("this is my fetchCategories");
+            const categoryContainer = document.getElementById('category-container');
+
+            // Clear any existing child nodes
+            categoryContainer.innerHTML = '';  // Clear existing content
+
+            console.log("Fetching categories now...");
+            fetch('/tasks/categories')
+                .then(response => response.json())
+                .then(data => {
+                    console.log("this is my categories", data); // Check the full response structure
+                    const categories = data.categories || []; // Get the categories array
+                    if (categories.length > 0) {
+                        categories.forEach(category => {
+                            const section = document.createElement('div');
+                            section.className = 'category-section';
+                            section.innerHTML = `
+                                <h3 onclick="loadTasksForCategory('${category}')">${category}</h3>
+                                <ul id="tasks-${category}" class="task-list hidden"></ul>
+                            `;
+                            categoryContainer.appendChild(section);
+                            console.log("Appended category:", category);  // Log appended categories
+                        });
+                        categoryContainer.classList.remove('hidden');
+                        console.log("Category container:", categoryContainer);  // Log the container after appending
+                    } else {
+                        console.log("No categories found.");
+                    }
+                })
+                .catch(error => console.error('Error fetching categories:', error));
+        }
+
+
+        function loadTasksForCategory(category) {
+            const taskContainer = document.getElementById(`tasks-${category}`);
+            
+            // Toggle visibility of the task container
+            if (taskContainer.classList.contains('hidden')) {
+                taskContainer.classList.remove('hidden');
+                
+                // Fetch tasks if not already loaded
+                if (!taskContainer.hasChildNodes()) {
+                    fetch(`/tasks/category/${category}`)
+                        .then(response => response.json())
+                        .then(data => {
+                            const tasks = data.tasks;
+                            taskContainer.innerHTML = tasks.map(task => `
+                                <li class="task-item">
+                                    ID: ${task.id} <br>
+                                    Description: ${task.description} <br>
+                                    Status: ${task.status} <br>
+                                    Category: ${task.category}
+                                </li>
+                            `).join('');
+                        })
+                        .catch(error => console.error('Error loading tasks for category:', error));
+                }
+            } else {
+                taskContainer.classList.add('hidden');
+            }
+        }
+
     </script>
 </body>
 </html>
