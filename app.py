@@ -4,15 +4,6 @@ import json
 
 app = Flask(__name__)
 
-# NOT NEEDED WITHOUT TEST_TASKS.JSON
-# def test_file():
-#     if test_file
-#         with open(testfile)
-#         return testfile
-#     else 
-#         with open(file)
-#         return file
-
 # HOME
 @app.route('/', methods=['GET'])
 def tasks():
@@ -181,7 +172,6 @@ def get_categories():
         tasks = json.load(file)
     categories = list(set(task['category'] for task in tasks))
     categories.sort()
-    print(categories)
     return {"categories": categories}
 
 # GET TASKS BY CATEGORY

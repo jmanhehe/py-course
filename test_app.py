@@ -61,7 +61,6 @@ def test_add_task(client):
 # - Correct password 
 # - Comment out as needed to test each scenario
 # - previous test will create a new task, and last delete test will delete newly created task
-
 def test_delete_task_no_password(client):
     response = client.delete('/tasks/3')
     assert response.status_code == 400
